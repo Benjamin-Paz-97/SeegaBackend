@@ -1,0 +1,32 @@
+#!/bin/bash
+
+echo "========================================"
+echo "  Seega Game - Backend Server"
+echo "========================================"
+echo ""
+
+# Verificar si existe el entorno virtual
+if [ ! -d "venv" ]; then
+    echo "Creando entorno virtual..."
+    python3 -m venv venv
+fi
+
+# Activar entorno virtual
+echo "Activando entorno virtual..."
+source venv/bin/activate
+
+# Instalar dependencias si es necesario
+echo "Verificando dependencias..."
+pip install -r requirements.txt --quiet
+
+echo ""
+echo "========================================"
+echo "  Iniciando servidor en http://0.0.0.0:8000"
+echo "  Documentacion: http://localhost:8000/docs"
+echo "========================================"
+echo ""
+echo "Presiona Ctrl+C para detener el servidor"
+echo ""
+
+# Iniciar servidor
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
