@@ -103,6 +103,7 @@ class GameState:
     
     # Metadata
     total_pieces_placed: int = 0  # Total colocadas (max 24)
+    rematch_requests: set = field(default_factory=set)  # Jugadores que quieren rematch
     
     def get_player_session(self, player_number: int) -> Optional[PlayerSession]:
         """Obtiene la sesión de un jugador"""

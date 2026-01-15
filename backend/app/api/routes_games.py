@@ -144,6 +144,19 @@ async def leave_game(
     return result
 
 
+@router.post("/games/{game_id}/rematch")
+async def rematch_game(
+    game_id: str,
+    authorization: Optional[str] = Header(None)
+):
+    """
+    Solicita un rematch. Si ambos jugadores solicitan rematch, se resetea el juego.
+    """
+    token = _extract_token(authorization)
+    result = game_service.rematch_game(game_id, token)
+    return result
+
+
 def _extract_token(authorization: Optional[str]) -> str:
     """Extrae el token del header Authorization: Bearer {token}"""
     if not authorization:

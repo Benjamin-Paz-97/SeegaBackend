@@ -3,6 +3,7 @@ Servicio principal del juego: orquesta todas las reglas
 """
 import uuid
 import asyncio
+import random
 from fastapi import HTTPException
 
 from app.domain.models import (
@@ -98,6 +99,9 @@ class GameService:
         player_token = self._generate_token()
         state.player2 = PlayerSession(player_number=2, token=player_token)
         state.status = GameStatus.PLAYING
+        
+        # Seleccionar jugador inicial aleatoriamente (1 o 2)
+        state.current_player = random.choice([1, 2])
         
         self.repo.save(state)
         
@@ -540,6 +544,85 @@ class GameService:
             return {
                 "message": "Has abandonado la partida",
                 "gameDeleted": False
+            }
+    
+    def rematch_game(self, game_id: str, player_token: str) -> dict:
+        """
+        Solicita un rematch. Si ambos jugadores solicitan rematch, se resetea el juego.
+        """
+        state = self.repo.get(game_id)
+        if not state:
+            raise HTTPException(status_code=404, detail="Partida no encontrada")
+        
+        # Verificar que el juego haya terminado
+        if not state.game_over:
+            raise HTTPException(status_code=400, detail="El juego aún no ha terminado")
+        
+        # Identificar qué jugador está solicitando rematch
+        player_num = None
+        if state.player1 and state.player1.token == player_token:
+            player_num = 1
+        elif state.player2 and state.player2.token == player_token:
+            player_num = 2
+        else:
+            raise HTTPException(status_code=403, detail="Token inválido")
+        
+        # Marcar que este jugador quiere rematch
+        if not hasattr(state, 'rematch_requests'):
+            state.rematch_requests = set()
+        state.rematch_requests.add(player_num)
+        
+        # Verificar si ambos jugadores quieren rematch
+        if len(state.rematch_requests) >= 2:
+            # Resetear el juego
+            state.board = Board()
+            state.phase = Phase.PLACEMENT
+            state.status = GameStatus.PLAYING
+            state.current_player = random.choice([1, 2])
+            state.pieces_count = {1: 0, 2: 0}
+            state.placement_remaining = 2
+            state.total_pieces_placed = 0
+            state.winner = None
+            state.game_over = False
+            state.chain_capture_piece = None
+            state.rematch_requests = set()
+            
+            self.repo.save(state)
+            
+            # Notificar a ambos jugadores que el rematch comenzó
+            self.notifier.notify_game_event(
+                game_id,
+                {
+                    "type": "rematch_started",
+                    "phase": "placement",
+                    "currentPlayer": state.current_player
+                }
+            )
+            
+            return {
+                "message": "Rematch iniciado",
+                "rematchStarted": True,
+                "currentPlayer": state.current_player
+            }
+        else:
+            # Solo un jugador quiere rematch, notificar al oponente
+            opponent_num = 2 if player_num == 1 else 1
+            opponent_token = state.player1.token if opponent_num == 1 else state.player2.token
+            
+            self.notifier.notify_specific_player(
+                game_id,
+                opponent_token,
+                {
+                    "type": "rematch_requested",
+                    "message": "Tu oponente quiere jugar de nuevo"
+                }
+            )
+            
+            self.repo.save(state)
+            
+            return {
+                "message": "Esperando confirmación del oponente",
+                "rematchStarted": False
             }
     
     async def _notify_game_started_delayed(self, game_id: str, state: GameState):
